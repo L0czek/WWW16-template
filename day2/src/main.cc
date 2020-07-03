@@ -232,8 +232,8 @@ EFI_STATUS connect(EFI_TCP4* tcp) {
         return status;
     }
     status = wait_for(token.CompletionToken.Event);
+    close_event(token.CompletionToken.Event);
     if (!EFIERR(status)) {
-        close_event(token.CompletionToken.Event);
         return status;
     }
     return token.CompletionToken.Status;
