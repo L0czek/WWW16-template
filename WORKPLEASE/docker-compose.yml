@@ -1,0 +1,13 @@
+version: '2'
+
+services:
+  main:
+    build: .
+    environment:
+      - DISPLAY=${DISPLAY}
+    privileged: true
+    devices:
+      - /dev/kvm:/dev/kvm
+    volumes:
+      - ./data:/home/developer/data
+      - /tmp/.X11-unix:/tmp/.X11-unix
