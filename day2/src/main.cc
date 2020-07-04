@@ -239,51 +239,87 @@ EFI_STATUS connect(EFI_TCP4* tcp) {
     return token.CompletionToken.Status;
 }
 
+std::size_t send(EFI_TCP4* tcp, char* buffer, std::size_t n) {
+    EFI_TCP4_IO_TOKEN token;
+    EFI_STATUS status = create_event(0, 0, nullptr, nullptr, &token.CompletionToken.Event);
+    if (EFI_ERROR(status))
+        return 0;
+    EFI_TCP4_TRANSMIT_DATA mTx;
+    token.Packet.TxData = &mTx;
+    mTx.Push = TRUE;
+    mTx.Urgent = FALSE;
+    mTx.DataLength = n;
+    mTx.FragmentCount = 1;
+    mTx.FragmentTable[0].FragmentLength = n;
+    mTx.FragmentTable[0].FragmentBuffer = (void*)buffer;
+    status = uefi(tcp->Transmit, tcp, &token);
+    if (EFI_ERROR(status)) {
+        close_event(token.CompletionToken.Event);
+        return 0;
+    }
+
+    status = wait_for(token.CompletionToken.Event);
+    close_event(token.CompletionToken.Event);
+    if (EFI_ERROR(status)) {
+        return 0;
+    }
+    return mTx.DataLength;
+}
+
+std::size_t recv(EFI_TCP4* tcp, char* buffer, std::size_t n) {
+    EFI_TCP4_IO_TOKEN token;
+    EFI_STATUS status = create_event(0, 0, nullptr, nullptr, &token.CompletionToken.Event);
+    EFI_TCP4_RECEIVE_DATA mRx;
+    token.Packet.RxData = &mRx;
+    mRx.UrgentFlag = FALSE;
+    mRx.DataLength = n;
+    mRx.FragmentCount = 1;
+    mRx.FragmentTable[0].FragmentLength = n;
+    mRx.FragmentTable[0].FragmentBuffer = (void*)buffer;
+    status = uefi(tcp->Receive, tcp, &token);
+    if (EFI_ERROR(status)) {
+        close_event(token.CompletionToken.Event);
+        return 0;
+    }
+    status = wait_for(token.CompletionToken.Event);
+    close_event(token.CompletionToken.Event);
+    if (EFI_ERROR(status)) {
+        return 0;
+    }
+    return mRx.DataLength;
+}
+
+void close(EFI_TCP4* tcp) {
+    EFI_TCP4_CLOSE_TOKEN token;
+    EFI_STATUS status = create_event(0, 0, nullptr, nullptr, &token.CompletionToken.Event);
+    status = uefi(tcp->Close, tcp, &token);
+    status = wait_for(token.CompletionToken.Event);
+}
+
+bool isKeyPressed(wchar_t ch) {
+    EFI_INPUT_KEY key;
+    EFI_STATUS status = uefi(st->ConIn->ReadKeyStroke, st->ConIn, &key);
+    if (EFI_ERROR(status)) {
+        return false;
+    } else {
+        return key.UnicodeChar == ch;
+    }
+}
+
+static inline void outb(uint16_t port, uint8_t val)
+{
+    asm volatile ( "outb %0, %1" : : "a"(val), "Nd"(port) );
+    /* There's an outb %al, $imm8  encoding, for compile-time constant port numbers that fit in 8b.  (N constraint).
+     * Wider immediate constants would be truncated at assemble-time (e.g. "i" constraint).
+     * The  outb  %al, %dx  encoding is the only option for all other cases.
+     * %1 expands to %dx because  port  is a uint16_t.  %w1 could be used if we had the port number a wider C type */
+}
+
+#define debug(w) Print((CHAR16*)w);
 EFI_STATUS cxx_main(EFI_HANDLE ImageHandle, EFI_SYSTEM_TABLE* SystemTable) {
     st = SystemTable;
     bs = SystemTable->BootServices;
     
-    EFI_LOADED_IMAGE* loaded_image;
-    handle_protocol(ImageHandle, &LoadedImageProtocol, loaded_image);
-    Print((CHAR16*)L"%X\n", loaded_image->ImageBase);
-    
-    auto fs = open_fs_with_file(L"startup.nsh");
-    auto file = fopen(fs, L"startup.nsh", EFI_FILE_MODE_READ, EFI_FILE_READ_ONLY);
-    char buffer[100];
-    fread(file, buffer, 15);
 
-/* bp(); */
-
-    EFI_GRAPHICS_OUTPUT_BLT_PIXEL* buffergpu = efi::Allocator<EFI_GRAPHICS_OUTPUT_BLT_PIXEL>().allocate(800*600);
-    memset(buffergpu, 0, 800*600*sizeof(EFI_GRAPHICS_OUTPUT_BLT_PIXEL));
-    for (std::size_t i=0; i < 100; ++i) {
-        for (std::size_t j=0; j < 100; ++j) {
-            buffergpu[i*800+j].Green = 255;
-        }
-    }
-    auto screens = open_screens();
-    auto screen = Screen(screens[0]);
-    screen.blt(buffergpu,EfiBltBufferToVideo,  0, 0, 0, 0, 100, 100, 800*4);
-    
-    auto services = get_tcp4_services();
-    auto tcp = socket(services[0]);
-    
-    EFI_TCP4_CONFIG_DATA config {
-        0,
-        255,
-        {
-            TRUE,
-            { {0, 0, 0, 0} },
-            { {0, 0, 0, 0} },
-            1337,
-            { {192, 168, 100, 1 } },
-            4444,
-            TRUE
-        },
-        NULL
-    };
-    
-    socket_config(tcp, config);
-    connect(tcp);
     return EFI_SUCCESS;
 }
