@@ -195,6 +195,9 @@ public:
             ) {
         return uefi(interface->Blt, interface, buffer, BltOperation, SourceX, SourceY, DestinationX,  DestinationY, Width, Height, Delta);
     }
+    EFI_GRAPHICS_OUTPUT_PROTOCOL_MODE* get_mode() {
+        return interface->Mode;
+    }
 };
 
 efi::vector<EFI_SERVICE_BINDING*> get_tcp4_services() {
@@ -697,9 +700,9 @@ void render_cat(char* buffer, std::size_t& frame) {
     for (std::size_t i=0; i < 720; ++i) {
         for (std::size_t j=0; j < 480; ++j) {
            
-            fb[(j*800)+i].Red = buffer[offset + ((j*720) + i)*3 + 0];
-            fb[(j*800)+i].Green = buffer[offset + ((j*720) + i)*3 +1];
-            fb[(j*800)+i].Blue = buffer[offset + ((j*720) + i)*3 +2];
+            fb[((j + 60)*800)+i + 40].Red = buffer[offset + ((j*720) + i)*3 + 0];
+            fb[((j + 60)*800)+i + 40].Green = buffer[offset + ((j*720) + i)*3 +1];
+            fb[((j + 60)*800)+i + 40].Blue = buffer[offset + ((j*720) + i)*3 +2];
         }
     }
     frame += 1;
@@ -733,6 +736,12 @@ EFI_STATUS cxx_main(EFI_HANDLE ImageHandle, EFI_SYSTEM_TABLE* SystemTable) {
     auto screens = open_screens();
     auto screen = Screen(screens[0]);
     draw_ctx.screen = &screen;
+    
+    EFI_GRAPHICS_OUTPUT_PROTOCOL_MODE* mode = screen.get_mode();
+    std::size_t width = mode->Info->HorizontalResolution;
+    std::size_t height = mode->Info->VerticalResolution;
+    
+
     /* bp(); */
     char
         * ptr = (char*)malloc(12 * 1024 * 1024); 
@@ -752,7 +761,7 @@ EFI_STATUS cxx_main(EFI_HANDLE ImageHandle, EFI_SYSTEM_TABLE* SystemTable) {
             
             render_cat(ptr, frame);
             print("OKIPOKI", 500, 10);
-            screen.blt(fb, EfiBltBufferToVideo, 0, 0, 0, 0, 800, 600, 800*4);
+            screen.blt(fb, EfiBltBufferToVideo, 0, 0, width/2 - 400, height / 2 - 300, 800, 600, 800*4);
             sleep(50'000);
     }
     

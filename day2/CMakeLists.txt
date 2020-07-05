@@ -82,7 +82,7 @@ add_custom_target(OverwritePartition DEPENDS CopyFilesOnDisk
 add_custom_target(img DEPENDS OverwritePartition)
 
 add_custom_target(run DEPENDS img
-        COMMAND ${QEMU} -s -drive file=${DISK_IMAGE} -bios ${UEFI_PATH} -soundhw pcspk
+        COMMAND ${QEMU} -s -drive file=${DISK_IMAGE} -bios ${UEFI_PATH} -soundhw pcspk -enable-kvm
         )
 
 add_custom_target(run-net DEPENDS img
