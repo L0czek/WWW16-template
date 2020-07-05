@@ -23,6 +23,7 @@ set(QEMU_NETWORK_INTERFACE_MAC "00:00:00:00:00:01")
 set(FILES_TO_COPY_ON_DISK
         ${CMAKE_SOURCE_DIR}/${OUTPUT_FILE_NAME}
         ${CMAKE_SOURCE_DIR}/scripts/startup.nsh
+        ${CMAKE_SOURCE_DIR}/src/nyan.bin
     )
 
 set(DISK_IMAGE "${CMAKE_BINARY_DIR}/${DISK_NAME}")
@@ -34,7 +35,7 @@ set(STATIC_LIB_PATH "${CMAKE_SOURCE_DIR}/lib")
 set(CRT0_PATH "${CMAKE_SOURCE_DIR}/lib/crt0-efi-x86_64.o")
 set(LINK_SCRIPT "${CMAKE_SOURCE_DIR}/scripts/elf_x86_64_efi.lds")
 
-set(CMAKE_CXX_FLAGS "-masm=intel -std=c++17 -fno-stack-protector -static -D_GLIBCXX_FULLY_DYNAMIC_STRING -fpic -fshort-wchar -Wall -Wextra -mno-red-zone -DEFI_FUNCTION_WRAPPER -ggdb -O0 -s")
+set(CMAKE_CXX_FLAGS " -std=c++17 -fno-stack-protector -static -D_GLIBCXX_FULLY_DYNAMIC_STRING -fpic -fshort-wchar -Wall -Wextra -mno-red-zone -DEFI_FUNCTION_WRAPPER -ggdb -O0 -s")
 set(LDFLAGS "-nostdlib -znocombreloc -Bsymbolic -shared -static")
 set(OBJCOPY_FLAGS -j .text -j .sdata -j .data -j .dynamic -j .dynsym -j .rel -j .rela -j .reloc --target=efi-app-x86_64)
 set(OBJCOPY_DEGUG_FLAGS ${OBJCOPY_FLAGS} -j .debug_info -j .debug_abbrev -j .debug_loc -j .debug_aranges -j .debug_line -j .debug_macinfo -j .debug_str)
@@ -55,10 +56,7 @@ add_custom_command(TARGET ${TARGET_NAME} POST_BUILD
     )
 
 add_custom_command(OUTPUT ${DISK_IMAGE}
-        COMMAND dd if=/dev/zero of=${DISK_IMAGE} bs=512 count=93750
-        COMMAND sudo parted ${DISK_IMAGE} -s -a minimal mklabel gpt
-        COMMAND sudo parted ${DISK_IMAGE} -s -a minimal mkpart EFI FAT16 2048s 93716s
-        COMMAND sudo parted ${DISK_IMAGE} -s -a minimal toggle 1 boot
+        COMMAND dd if=/dev/zero of=${DISK_IMAGE} bs=512 count=93750 && sudo parted ${DISK_IMAGE} -s -a minimal mklabel gpt && sudo parted ${DISK_IMAGE} -s -a minimal mkpart EFI FAT16 2048s 93716s && sudo parted ${DISK_IMAGE} -s -a minimal toggle 1 boot
     )
 add_custom_target(FinalDisk ALL DEPENDS ${DISK_IMAGE})
 
@@ -67,7 +65,7 @@ add_custom_command(OUTPUT ${TEMP_IMAGE}
     )
 add_custom_target(TemporaryDisk ALL DEPENDS ${TEMP_IMAGE})
 
-add_custom_target(FormatTempDisk DEPENDS TemporaryDisk
+add_custom_target(FormatTempDisk DEPENDS TemporaryDisk FinalDisk
         COMMAND mformat -i ${TEMP_IMAGE} -h 32 -t 32 -n 64 -c 1
     )
 
